@@ -1,0 +1,581 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>バズトル タスク</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@500;700&family=Noto+Sans+JP:wght@400;500;700&display=swap">
+<style>
+/* Layout: one column operations board. Summary tiles → dept chips → quick add → sorted list. Done folded at the bottom. */
+:root{
+  --bg:#f3f6fb; --surface:#ffffff; --surface-2:#eaf0f8; --line:#dbe3ee; --line-strong:#bccada;
+  --fg:#0f1b2d; --fg-2:#4a5a70; --fg-3:#8594a8;
+  --accent:#1d5fd0; --accent-soft:#e2ebfb; --accent-fg:#ffffff;
+  --crit:#b3261e; --crit-soft:#fbe3e0;
+  --warn:#9a5b00; --warn-soft:#fdeccd;
+  --info:#0b7aa8; --info-soft:#dcf1fa;
+  --ok:#2d7a3e; --ok-soft:#dcf0df;
+  --wait:#7a4e9e; --wait-soft:#ece0f6;
+  --shadow:0 10px 30px rgba(15,40,80,.14);
+  --font-display:"Zen Kaku Gothic New","Noto Sans JP","Hiragino Sans","Yu Gothic",sans-serif;
+  --font-body:"Noto Sans JP","Hiragino Sans","Yu Gothic",sans-serif;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0c1320; --surface:#131c2c; --surface-2:#192437; --line:#26334a; --line-strong:#38496a;
+  --fg:#e8eef8; --fg-2:#a3b1c6; --fg-3:#6f7f97;
+  --accent:#6fa3ff; --accent-soft:#16284a; --accent-fg:#081325;
+  --crit:#f0877f; --crit-soft:#3d1f1d;
+  --warn:#e6b35a; --warn-soft:#3b2d12;
+  --info:#5cc6ee; --info-soft:#122e3d;
+  --ok:#7ccb8c; --ok-soft:#1c3522;
+  --wait:#c3a1e6; --wait-soft:#2f2140;
+  --shadow:0 10px 30px rgba(0,0,0,.5);
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0c1320; --surface:#131c2c; --surface-2:#192437; --line:#26334a; --line-strong:#38496a;
+  --fg:#e8eef8; --fg-2:#a3b1c6; --fg-3:#6f7f97;
+  --accent:#6fa3ff; --accent-soft:#16284a; --accent-fg:#081325;
+  --crit:#f0877f; --crit-soft:#3d1f1d;
+  --warn:#e6b35a; --warn-soft:#3b2d12;
+  --info:#5cc6ee; --info-soft:#122e3d;
+  --ok:#7ccb8c; --ok-soft:#1c3522;
+  --wait:#c3a1e6; --wait-soft:#2f2140;
+  --shadow:0 10px 30px rgba(0,0,0,.5);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:14px;line-height:1.55;margin:0;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 96px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:none;margin:0 auto}
+@media (min-width:900px){body{padding-left:28px;padding-right:28px}}
+/* wide: 全体は部門ごとの列（ボード）、部門タブはカードを複数列に */
+.board{display:block}
+.board .col + .col{margin-top:4px}
+@media (min-width:900px){
+  .board{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(300px,1fr);gap:14px;align-items:start;overflow-x:auto;padding-bottom:10px;scroll-snap-type:x proximity;overscroll-behavior-x:contain}
+  .board .col{scroll-snap-align:start}
+  .board .col + .col{margin-top:0}
+  .board .col{background:var(--surface-2,transparent);border:1px solid var(--line);border-radius:12px;padding:4px 10px 10px}
+  .board .col .group-h{display:flex;justify-content:space-between;margin:8px 2px 6px}
+  .board .col.over{border-color:var(--crit)}
+  .list.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:8px;align-items:start}
+}
+h1{font-family:var(--font-display);font-weight:700;font-size:20px;margin:0;letter-spacing:.01em;display:flex;align-items:center;gap:10px}
+h1::before{content:"";width:6px;height:22px;border-radius:3px;background:linear-gradient(180deg,var(--accent),var(--info))}
+.hdr{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:18px 0 10px;flex-wrap:wrap}
+.hdr .today{color:var(--fg-2);font-size:13px;font-variant-numeric:tabular-nums}
+.hdr .sync{font-size:12px;color:var(--fg-3)}
+.hdr .sync.warn{color:var(--warn)}
+
+/* summary tiles */
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:6px 0 14px}
+.tile{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:10px 10px 8px;text-align:left;display:flex;flex-direction:column;gap:2px;min-width:0;position:relative}
+.tile .n{font-family:var(--font-display);font-weight:700;font-size:26px;line-height:1.1;font-variant-numeric:tabular-nums}
+.tile .l{font-size:11.5px;color:var(--fg-2);line-height:1.3}
+.tile::before{content:"";position:absolute;left:10px;right:10px;top:0;height:3px;border-radius:0 0 3px 3px;background:var(--tile-c)}
+.tile.crit{--tile-c:var(--crit)} .tile.warn{--tile-c:var(--warn)} .tile.s{--tile-c:var(--accent)} .tile.wait{--tile-c:var(--wait)}
+.tile.crit .n{color:var(--crit)} .tile.warn .n{color:var(--warn)} .tile.s .n{color:var(--accent)} .tile.wait .n{color:var(--wait)}
+.tile.on{outline:2px solid var(--tile-c);outline-offset:0;background:var(--surface-2)}
+.tile.zero .n{color:var(--fg-3)}
+@media (max-width:480px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* dept chips */
+.chips{display:flex;gap:6px;overflow-x:auto;padding:2px 0 8px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:0 0 auto;border:1px solid var(--line-strong);background:var(--surface);border-radius:999px;padding:6px 12px;font-size:13px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.chip .c{font-size:11px;color:var(--fg-3);font-variant-numeric:tabular-nums}
+.chip.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.chip.on .c{color:inherit;opacity:.75}
+
+/* quick add */
+.quick{display:flex;gap:6px;margin:4px 0 12px}
+.quick input{flex:1 1 auto;min-width:0;border:1px solid var(--line-strong);background:var(--surface);border-radius:var(--r);padding:10px 12px}
+.quick select{flex:0 0 auto;border:1px solid var(--line-strong);background:var(--surface);border-radius:var(--r);padding:0 8px;max-width:38%}
+.quick button{flex:0 0 auto;border:0;background:var(--accent);color:var(--accent-fg);border-radius:var(--r);padding:0 16px;font-weight:700}
+.quick button:disabled{opacity:.5;cursor:default}
+
+/* filters */
+.filters{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:0 0 10px;font-size:12.5px;color:var(--fg-2)}
+.filters select{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:5px 8px;font-size:12.5px}
+.filters .reset{border:0;background:none;color:var(--accent);padding:4px 6px;font-size:12.5px;text-decoration:underline}
+.filters .cnt{margin-left:auto;font-variant-numeric:tabular-nums}
+
+/* list */
+.list{display:flex;flex-direction:column;gap:6px}
+.row{display:grid;grid-template-columns:28px minmax(0,1fr);gap:2px 10px;border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:10px 12px 10px 10px;text-align:left;width:100%;position:relative}
+.row:hover{border-color:var(--line-strong)}
+.row.overdue{border-left:4px solid var(--crit);padding-left:7px}
+.row.soon{border-left:4px solid var(--warn);padding-left:7px}
+.row .ck{grid-row:1/span 3;align-self:start;margin-top:2px}
+.ck{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--line-strong);background:var(--surface);display:inline-flex;align-items:center;justify-content:center;color:transparent;padding:0;flex:0 0 auto}
+.ck:hover{border-color:var(--ok);color:var(--ok)}
+.ck.done{background:var(--ok);border-color:var(--ok);color:#fff}
+.row .t1{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
+.row .title{font-weight:500;font-size:15px;line-height:1.35;min-width:0;overflow-wrap:anywhere}
+.row .t2{display:flex;gap:6px 10px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--fg-2);min-width:0}
+.row .next{font-size:13px;color:var(--fg-2);overflow-wrap:anywhere}
+.row .next b{font-weight:500;color:var(--fg-3);font-size:11px;margin-right:4px}
+.pri{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:5px;font-family:var(--font-display);font-weight:700;font-size:12px;flex:0 0 auto}
+.pri.S{background:var(--accent);color:var(--accent-fg)} .pri.A{background:var(--accent-soft);color:var(--accent)} .pri.B{background:var(--surface-2);color:var(--fg-2)}
+.badge{display:inline-flex;align-items:center;gap:4px;border-radius:5px;padding:1px 7px;font-size:11.5px;white-space:nowrap;background:var(--surface-2);color:var(--fg-2)}
+.badge.dept{border:1px solid var(--line)}
+.st{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:1px 8px;font-size:11.5px;white-space:nowrap}
+.st::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.st.todo{background:var(--surface-2);color:var(--fg-2)} .st.doing{background:var(--info-soft);color:var(--info)} .st.waiting{background:var(--wait-soft);color:var(--wait)} .st.done{background:var(--ok-soft);color:var(--ok)}
+.due{font-variant-numeric:tabular-nums;white-space:nowrap}
+.due.over{color:var(--crit);font-weight:700} .due.soon{color:var(--warn);font-weight:700}
+.owner{white-space:nowrap}
+.owner.stale{color:var(--crit);font-weight:500}
+.empty{border:1px dashed var(--line-strong);border-radius:var(--r);padding:28px 16px;text-align:center;color:var(--fg-2);font-size:13.5px}
+.empty b{display:block;color:var(--fg);font-family:var(--font-display);font-size:16px;margin-bottom:4px}
+details.done{margin-top:18px}
+.donebar{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 10px}
+.donebar select,.donebar input{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:6px 9px;font-size:12.5px}
+.donebar input{flex:1 1 220px;min-width:0}
+.links{display:flex;flex-wrap:wrap;gap:6px;grid-column:2;margin-top:2px}
+.links a,.linklist a{font-size:12px;color:var(--accent);text-decoration:none;border:1px solid var(--line);background:var(--accent-soft);border-radius:999px;padding:1px 9px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.links a:hover,.linklist a:hover{text-decoration:underline}
+.linklist{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+details.done summary{cursor:pointer;color:var(--fg-2);font-size:13px;padding:6px 0;list-style:none;display:flex;align-items:center;gap:6px}
+details.done summary::-webkit-details-marker{display:none}
+details.done summary::before{content:"▸";font-size:12px;transition:transform .15s}
+details.done[open] summary::before{transform:rotate(90deg)}
+details.done .row{opacity:.72}
+details.done .title{text-decoration:line-through;text-decoration-color:var(--fg-3)}
+.group-h{font-family:var(--font-display);font-weight:700;font-size:12px;color:var(--fg-3);letter-spacing:.08em;margin:12px 0 2px;text-transform:uppercase}
+
+/* gate */
+.gate{position:fixed;inset:0;background:var(--bg);z-index:40;display:flex;align-items:center;justify-content:center;padding:16px}
+.gate form{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:22px;width:100%;max-width:360px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:10px}
+.gate h2{margin:0;font-family:var(--font-display);font-size:18px}
+.gate input{border:1px solid var(--line-strong);border-radius:8px;padding:10px 12px;font-size:15px;background:var(--surface)}
+.gate button{border:0;border-radius:8px;padding:10px;background:var(--accent);color:var(--accent-fg);font-weight:700}
+.gate .err{color:var(--crit);font-size:12.5px;min-height:1em}
+/* edit sheet */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:20;display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--surface);width:100%;max-width:640px;max-height:92dvh;overflow:auto;border-radius:16px 16px 0 0;box-shadow:var(--shadow);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px calc(16px + env(safe-area-inset-bottom,0px))}
+@media (min-width:720px){.ov{align-items:center}.sheet{border-radius:16px;max-height:88vh}}
+.sheet .grab{width:40px;height:4px;border-radius:2px;background:var(--line-strong);margin:0 auto 10px}
+.sheet h2{font-family:var(--font-display);font-size:16px;margin:0 0 10px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.sheet h2 .x{border:0;background:none;color:var(--fg-2);font-size:20px;line-height:1;padding:4px 8px}
+.f{display:flex;flex-direction:column;gap:4px;margin-bottom:12px;min-width:0}
+.f label{font-size:12px;color:var(--fg-2)}
+.f input,.f select,.f textarea{border:1px solid var(--line-strong);background:var(--bg);border-radius:8px;padding:9px 10px;width:100%}
+.f textarea{min-height:72px;resize:vertical}
+.f input[type=date]{min-height:40px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:420px){.two{grid-template-columns:1fr}}
+.seg{display:flex;border:1px solid var(--line-strong);border-radius:8px;overflow:hidden}
+.seg button{flex:1 1 0;border:0;background:var(--bg);padding:8px 4px;font-size:13px;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--fg);color:var(--bg);font-weight:700}
+.seg button.on.S{background:var(--accent);color:var(--accent-fg)}
+.seg button.on.waiting{background:var(--wait);color:#fff}
+.seg button.on.doing{background:var(--info);color:#fff}
+.seg button.on.done{background:var(--ok);color:#fff}
+.meta{font-size:11.5px;color:var(--fg-3);font-variant-numeric:tabular-nums;margin:2px 0 10px}
+.acts{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px}
+.btn{border:1px solid var(--line-strong);background:var(--surface);border-radius:8px;padding:9px 14px;font-weight:500}
+.btn.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent);font-weight:700;margin-left:auto}
+.btn.danger{color:var(--crit);border-color:transparent;background:none}
+.btn.danger.arm{background:var(--crit);color:#fff}
+.btn:disabled{opacity:.5;cursor:default}
+.hint{font-size:12px;color:var(--fg-3)}
+
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:9px 14px;border-radius:999px;font-size:13px;z-index:30;box-shadow:var(--shadow);max-width:calc(100% - 32px)}
+.toast.err{background:var(--crit);color:#fff}
+.note{border:1px solid var(--line);background:var(--surface-2);border-radius:var(--r);padding:10px 12px;font-size:13px;color:var(--fg-2);margin-bottom:10px}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <div class="hdr">
+    <h1>バズトル タスク</h1>
+    <span class="today" id="today"></span>
+    <span class="sync" id="sync"></span>
+  </div>
+
+  <div class="tiles" id="tiles"></div>
+  <div class="chips" id="chips" role="tablist"></div>
+
+  <form class="quick" id="quick" autocomplete="off">
+    <input id="q-title" placeholder="タスクを追加（タイトルだけでOK）" aria-label="タスク名">
+    <select id="q-dept" aria-label="部門"></select>
+    <button type="submit" id="q-add">追加</button>
+  </form>
+
+  <div class="filters">
+    <select id="f-status" aria-label="ステータスで絞る">
+      <option value="">ステータス：すべて</option>
+      <option value="todo">未着手</option>
+      <option value="doing">進行中</option>
+      <option value="waiting">依頼中・待ち</option>
+    </select>
+    <select id="f-owner" aria-label="担当・依頼先で絞る"><option value="">担当：すべて</option></select>
+    <button type="button" class="reset" id="f-reset" hidden>絞り込みを解除</button>
+    <span class="cnt" id="cnt"></span>
+  </div>
+
+  <div id="note" class="note" hidden></div>
+  <div class="list" id="list"></div>
+  <details class="done" id="doneWrap"><summary id="doneSum">完了 0件</summary>
+    <div class="donebar">
+      <select id="d-sort" aria-label="完了の並び順">
+        <option value="doneDesc">完了日：新しい順</option><option value="doneAsc">完了日：古い順</option>
+        <option value="dept">部門順</option><option value="pri">優先度順</option><option value="title">タイトル順</option>
+      </select>
+      <input id="d-q" type="search" placeholder="完了から検索（タイトル・メモ・担当・URL）">
+    </div>
+    <div class="list cards" id="doneList"></div></details>
+</div>
+
+<div class="gate" id="gate" hidden><form id="gate-f"><h2>バズトル タスク</h2><div style="font-size:13px;color:var(--fg-2)">合言葉を入力してください</div><input id="gate-pw" type="password" autocomplete="current-password" placeholder="合言葉"><div class="err" id="gate-err"></div><button type="submit">開く</button></form></div>
+<div class="ov" id="ov" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sh-h">
+    <div class="grab"></div>
+    <h2 id="sh-h"><span id="sh-title">タスクを編集</span><button type="button" class="x" id="sh-close" aria-label="閉じる">×</button></h2>
+    <div class="f"><label for="e-title">タイトル</label><input id="e-title"></div>
+    <div class="two">
+      <div class="f"><label for="e-dept">部門</label><select id="e-dept"></select></div>
+      <div class="f"><label for="e-cat">区分（CR・LPなど）</label><input id="e-cat" list="cats" placeholder="任意"><datalist id="cats"><option value="CR"><option value="LP"><option value="広告"><option value="セミナー"><option value="資料"></datalist></div>
+    </div>
+    <div class="two">
+      <div class="f"><label>優先度</label><div class="seg" id="e-pri"></div></div>
+      <div class="f"><label for="e-due">期限</label><input id="e-due" type="date"></div>
+    </div>
+    <div class="f"><label>ステータス</label><div class="seg" id="e-status"></div></div>
+    <div class="f"><label for="e-owner">担当・依頼先（待ちなら「誰待ちか」）</label><input id="e-owner" list="owners" placeholder="例：西原さん"><datalist id="owners"></datalist></div>
+    <div class="f"><label for="e-next">次の一手（1行）</label><input id="e-next" placeholder="例：切り抜き箇所を指定して西原さんへ送る"></div>
+    <div class="f"><label for="e-memo">メモ</label><textarea id="e-memo"></textarea></div>
+    <div class="f"><label for="e-links">関連URL（1行に1つ。「名前 URL」の形でもOK）</label><textarea id="e-links" rows="3" placeholder="例：素材フォルダ https://drive.google.com/...&#10;https://docs.google.com/..."></textarea><div class="linklist" id="e-linklist"></div></div>
+    <div class="meta" id="e-meta"></div>
+    <div class="acts">
+      <button type="button" class="btn danger" id="e-del">削除</button>
+      <button type="button" class="btn" id="e-toggle">完了にする</button>
+      <button type="button" class="btn primary" id="e-save">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+const DEPTS=[
+  {id:'all',label:'全体'},
+  {id:'marketing',label:'マーケ',long:'マーケ（CR・LP・広告）'},
+  {id:'is',label:'IS'},
+  {id:'sales',label:'営業'},
+  {id:'director',label:'ディレクター'},
+  {id:'cs',label:'CS'},
+  {id:'recruit',label:'採用'},
+  {id:'general',label:'その他',long:'その他（事業全体）'}
+];
+const DEPT_BY=Object.fromEntries(DEPTS.map(d=>[d.id,d]));
+const STATUS={todo:'未着手',doing:'進行中',waiting:'依頼中・待ち',done:'完了'};
+const PRI_ORDER={S:0,A:1,B:2};
+const $=id=>document.getElementById(id);
+
+// ---- state
+let db=null, userCap=null, canWrite=null; // null = unknown
+let tasks=[]; // array of {id, ...data}
+let loaded=false, fromCacheOnly=true;
+let tab='all', fStatus='', fOwner='', fTile='';
+let editing=null; // {id|null, draft}
+let delArmed=false;
+
+// ---- date helpers (local time)
+function todayStr(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function addDays(s,n){const d=new Date(s+'T00:00:00');d.setDate(d.getDate()+n);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function daysBetween(a,b){return Math.round((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/86400000);}
+function fmtDue(s){if(!s)return '';const [y,m,d]=s.split('-');const w=['日','月','火','水','木','金','土'][new Date(s+'T00:00:00').getDay()];return `${+m}/${+d}(${w})`;}
+function daysSince(iso){if(!iso)return 0;return Math.floor((Date.now()-Date.parse(iso))/86400000);}
+function fmtDT(iso){if(!iso)return '-';const d=new Date(iso);return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;}
+const isOpen=t=>t.status!=='done';
+const isOverdue=t=>isOpen(t)&&!!t.due&&t.due<todayStr();
+const isSoon=t=>isOpen(t)&&!!t.due&&t.due>=todayStr()&&t.due<=addDays(todayStr(),3);
+const isStale=t=>t.status==='waiting'&&daysSince(t.updatedAt)>=7;
+
+// ---- sort: overdue → priority → due → updated desc
+function cmp(a,b){
+  const oa=isOverdue(a)?0:1, ob=isOverdue(b)?0:1; if(oa!==ob)return oa-ob;
+  const pa=PRI_ORDER[a.priority]??3, pb=PRI_ORDER[b.priority]??3; if(pa!==pb)return pa-pb;
+  const da=a.due||'9999', dbb=b.due||'9999'; if(da!==dbb)return da<dbb?-1:1;
+  return (Date.parse(b.updatedAt)||0)-(Date.parse(a.updatedAt)||0);
+}
+
+// ---- hash / tab
+function readHash(){const h=(location.hash||'').replace('#','');if(DEPT_BY[h])tab=h;else{try{const s=localStorage.getItem('bt_tab');if(s&&DEPT_BY[s])tab=s;}catch(e){}}}
+function setTab(id){tab=id;try{localStorage.setItem('bt_tab',id);}catch(e){}render();}
+
+// ---- render
+function visibleTasks(){
+  return tasks.filter(t=>{
+    if(tab!=='all'&&t.dept!==tab)return false;
+    if(fStatus&&t.status!==fStatus)return false;
+    if(fOwner&&(t.owner||'')!==fOwner)return false;
+    if(fTile==='overdue'&&!isOverdue(t))return false;
+    if(fTile==='soon'&&!(isOverdue(t)||isSoon(t)))return false;
+    if(fTile==='s'&&!(isOpen(t)&&t.priority==='S'))return false;
+    if(fTile==='stale'&&!isStale(t))return false;
+    return true;
+  });
+}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+function renderTiles(){
+  const scope=tab==='all'?tasks:tasks.filter(t=>t.dept===tab);
+  const n={overdue:scope.filter(isOverdue).length, soon:scope.filter(t=>isOverdue(t)||isSoon(t)).length,
+    s:scope.filter(t=>isOpen(t)&&t.priority==='S').length, stale:scope.filter(isStale).length};
+  const defs=[['overdue','crit','期限切れ'],['soon','warn','今日〜3日以内'],['s','s','S（今週必達）'],['stale','wait','待ち7日以上']];
+  $('tiles').innerHTML=defs.map(([k,c,l])=>`<button type="button" class="tile ${c}${fTile===k?' on':''}${n[k]===0?' zero':''}" data-tile="${k}" aria-pressed="${fTile===k}"><span class="n">${n[k]}</span><span class="l">${l}</span></button>`).join('');
+}
+function renderChips(){
+  $('chips').innerHTML=DEPTS.map(d=>{
+    const c=d.id==='all'?tasks.filter(isOpen).length:tasks.filter(t=>t.dept===d.id&&isOpen(t)).length;
+    return `<button type="button" role="tab" class="chip${tab===d.id?' on':''}" data-tab="${d.id}" aria-selected="${tab===d.id}">${d.label}<span class="c">${c}</span></button>`;
+  }).join('');
+}
+function ownerList(){const s=new Set();tasks.forEach(t=>{(t.owner||'').split(/[・,、\/／]/).map(x=>x.trim()).filter(Boolean).forEach(x=>s.add(x));});return [...s].sort();}
+function renderOwnerFilter(){
+  const owners=[...new Set(tasks.map(t=>t.owner).filter(Boolean))].sort();
+  const sel=$('f-owner');const cur=fOwner;
+  sel.innerHTML='<option value="">担当：すべて</option>'+owners.map(o=>`<option value="${esc(o)}"${o===cur?' selected':''}>${esc(o)}</option>`).join('');
+  $('owners').innerHTML=ownerList().map(o=>`<option value="${esc(o)}">`).join('');
+}
+function parseLinks(txt){
+  return String(txt||'').split(/\n+/).map(l=>l.trim()).filter(Boolean).map(l=>{
+    const m=l.match(/https?:\/\/\S+/); if(!m)return null;
+    let label=l.replace(m[0],'').trim().replace(/[：:｜|]\s*$/,'');
+    if(!label){try{const u=new URL(m[0]);label=u.hostname.replace(/^www\./,'')+(u.pathname.length>1?u.pathname.slice(0,18)+(u.pathname.length>18?'…':''):'');}catch(e){label=m[0];}}
+    return {url:m[0],label};
+  }).filter(Boolean);
+}
+function linksHTML(t){const ls=parseLinks(t.links);return ls.length?`<div class="links">${ls.map(x=>`<a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">🔗 ${esc(x.label)}</a>`).join('')}</div>`:'';}
+function rowHTML(t){
+  const d=DEPT_BY[t.dept]||DEPT_BY.general;
+  const over=isOverdue(t), soon=isSoon(t), stale=isStale(t);
+  const dueTxt=t.due?`<span class="due${over?' over':soon?' soon':''}">${over?'期限切れ ':''}${fmtDue(t.due)}${over?`（${daysBetween(t.due,todayStr())}日超過）`:''}</span>`:'';
+  const ownerTxt=t.owner?`<span class="owner${stale?' stale':''}">${t.status==='waiting'?'待ち：':'担当：'}${esc(t.owner)}${t.status==='waiting'?`（${daysSince(t.updatedAt)}日）`:''}</span>`:(t.status==='waiting'?`<span class="owner stale">待ち先 未記入</span>`:'');
+  return `<div class="row${over?' overdue':soon?' soon':''}" data-id="${t.id}">
+    <button type="button" class="ck${t.status==='done'?' done':''}" data-ck="${t.id}" aria-label="${t.status==='done'?'未完に戻す':'完了にする'}" ${canWrite===false?'disabled':''}>
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5l2.6 2.5L10 3.5"/></svg></button>
+    <button type="button" class="t1 openb" data-open="${t.id}" style="all:unset;display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0;cursor:pointer">
+      ${t.priority?`<span class="pri ${t.priority}">${t.priority}</span>`:''}<span class="title">${esc(t.title)}</span></button>
+    <div class="t2">
+      <span class="badge dept">${d.label}${t.category?` · ${esc(t.category)}`:''}</span>
+      <span class="st ${t.status}">${STATUS[t.status]||t.status}</span>
+      ${dueTxt}${ownerTxt}
+    </div>
+    ${t.next?`<div class="next"><b>次の一手</b>${esc(t.next)}</div>`:''}
+    ${linksHTML(t)}
+  </div>`;
+}
+function render(){
+  $('today').textContent=`今日 ${fmtDue(todayStr())}`;
+  renderTiles(); renderChips(); renderOwnerFilter();
+  const vis=visibleTasks(); const open=vis.filter(isOpen).sort(cmp); const dq=($('d-q')&&$('d-q').value||'').trim().toLowerCase(); const ds=($('d-sort')&&$('d-sort').value)||'doneDesc';
+  const dt=t=>Date.parse(t.doneAt||t.updatedAt)||0; const PR={S:0,A:1,B:2,'':3};
+  const DI=id=>{const i=DEPTS.findIndex(d=>d.id===id);return i<0?99:i;};
+  const done=vis.filter(t=>!isOpen(t)).filter(t=>!dq||[t.title,t.memo,t.owner,t.links,t.next,t.category].join(' ').toLowerCase().includes(dq)).sort((a,b)=>
+    ds==='doneAsc'?dt(a)-dt(b):ds==='dept'?(DI(a.dept)-DI(b.dept))||(dt(b)-dt(a)):ds==='pri'?((PR[a.priority||'']??3)-(PR[b.priority||'']??3))||(dt(b)-dt(a)):ds==='title'?String(a.title).localeCompare(String(b.title),'ja'):dt(b)-dt(a));
+  const list=$('list');
+  if(!loaded&&tasks.length===0){
+    list.innerHTML=`<div class="empty"><b>タスクを読み込んでいます</b>共有データベースに保存されたタスクがここに並びます。</div>`;
+  }else if(open.length===0){
+    const anyFilter=fStatus||fOwner||fTile;
+    list.innerHTML=`<div class="empty"><b>${anyFilter?'この条件のタスクはありません':'未完のタスクはありません'}</b>${anyFilter?'絞り込みを解除するか、別の部門を見てください。':'上の入力欄にタイトルを入れて「追加」すると、ここに並びます。'}</div>`;
+  }else{
+    let html='';
+    if(tab==='all'){
+      // group by dept in DEPTS order, overdue first across all
+      const over=open.filter(isOverdue); const rest=open.filter(t=>!isOverdue(t));
+      const col=(cls,h,g)=>`<section class="col ${cls}"><div class="group-h"><span>${h}</span><span>${g.length}</span></div><div class="list">${g.map(rowHTML).join('')}</div></section>`;
+      if(over.length){html+=col('over','期限切れ',over);}
+      DEPTS.slice(1).forEach(d=>{const g=rest.filter(t=>t.dept===d.id);if(g.length){html+=col('',d.long||d.label,g);}});
+      const orphan=rest.filter(t=>!DEPT_BY[t.dept]); if(orphan.length)html+=col('','部門未設定',orphan);
+      html=`<div class="board">${html}</div>`;
+    }else html=`<div class="list cards">${open.map(rowHTML).join('')}</div>`;
+    list.innerHTML=html;
+  }
+  $('doneList').innerHTML=done.map(rowHTML).join('');
+  $('doneSum').textContent=`完了 ${done.length}件`;
+  $('doneWrap').hidden=done.length===0&&!dq;
+  $('cnt').textContent=`未完 ${open.length}件`;
+  $('f-reset').hidden=!(fStatus||fOwner||fTile);
+  const qd=$('q-dept'); if(tab!=='all'&&qd.value!==tab)qd.value=tab;
+  $('q-add').disabled=canWrite===false; $('q-title').disabled=canWrite===false;
+  if(canWrite===false){$('q-title').placeholder='閲覧のみ（編集権限がありません）';}
+}
+
+// ---- toast
+let toastT=null;
+function toast(msg,err){let el=document.querySelector('.toast');if(!el){el=document.createElement('div');el.className='toast';document.body.appendChild(el);}el.textContent=msg;el.classList.toggle('err',!!err);el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>{el.hidden=true;},err?4000:1800);}
+
+// ---- db
+function nowISO(){return new Date().toISOString();}
+function newTask(title,dept){const n=nowISO();return {title,dept,category:'',priority:'',due:'',status:'todo',owner:'',next:'',memo:'',links:'',createdAt:n,updatedAt:n,doneAt:null};}
+async function guard(p,okMsg){
+  try{await p; if(okMsg)toast(okMsg); return true;}
+  catch(e){const code=e&&e.code;
+    if(code==='invalid_argument'&&canWrite!==true){canWrite=false;render();toast('このページは閲覧のみです（編集権限がありません）',true);}
+    else if(code==='quota_exceeded')toast('保存上限に達しました。完了タスクを削除してください',true);
+    else toast('保存できませんでした。もう一度お試しください',true);
+    console.error(e);return false;}
+}
+async function addTask(title,dept){
+  if(!db){toast('データベースに接続できていません',true);return;}
+  const ok=await guard(db.collection('tasks').add(newTask(title,dept)),'追加しました');
+  return ok;
+}
+async function saveTask(id,data){
+  if(!db)return false;
+  const body={...data,updatedAt:nowISO()};
+  if(body.status==='done'&&!body.doneAt)body.doneAt=nowISO();
+  if(body.status!=='done')body.doneAt=null;
+  delete body.id;
+  return guard(db.doc('tasks/'+id).set(body),'保存しました');
+}
+async function toggleDone(id){
+  const t=tasks.find(x=>x.id===id);if(!t||!db)return;
+  const data={...t,status:t.status==='done'?'todo':'done'};
+  await saveTask(id,data);
+}
+async function deleteTask(id){ if(!db)return false; return guard(db.doc('tasks/'+id).delete(),'削除しました'); }
+
+function subscribe(){
+  const timer=setTimeout(()=>{if(!loaded){$('sync').textContent='まだ読み込めていません（通信を確認）';$('sync').classList.add('warn');}},10000);
+  db.collection('tasks').onSnapshot(snap=>{
+    tasks=snap.docs.filter(d=>d.exists).map(d=>({id:d.id,...d.data()}));
+    if(!snap.metadata.fromCache){loaded=true;clearTimeout(timer);$('sync').textContent='';$('sync').classList.remove('warn');}
+    else if(!loaded){$('sync').textContent='前回の内容を表示中';}
+    if(!loaded&&tasks.length)loaded=true;
+    render();
+    if(editing&&editing.id){const t=tasks.find(x=>x.id===editing.id);if(!t)closeSheet();}
+  },err=>{clearTimeout(timer);loaded=true;$('sync').textContent='データを取得できません';$('sync').classList.add('warn');
+    if(err&&err.code==='revoked'){canWrite=false;}render();console.error(err);});
+}
+
+// ---- edit sheet
+function segHTML(id,opts,cur){return opts.map(([v,l])=>`<button type="button" data-seg="${id}" data-v="${v}" class="${v===cur?'on '+(v||'none'):''}">${l}</button>`).join('');}
+function openSheet(id){
+  const t=id?tasks.find(x=>x.id===id):null; if(id&&!t)return;
+  editing={id:id||null,draft:t?{...t}:newTask('',tab==='all'?'marketing':tab)};
+  delArmed=false;
+  $('sh-title').textContent=id?'タスクを編集':'タスクを追加';
+  fillSheet(); $('ov').hidden=false; document.body.style.overflow='hidden';
+  if(!id)setTimeout(()=>$('e-title').focus(),50);
+}
+function fillSheet(){
+  const d=editing.draft;
+  $('e-title').value=d.title||''; $('e-dept').value=d.dept||'marketing'; $('e-cat').value=d.category||'';
+  $('e-due').value=d.due||''; $('e-owner').value=d.owner||''; $('e-next').value=d.next||''; $('e-memo').value=d.memo||''; $('e-links').value=d.links||''; renderSheetLinks();
+  $('e-pri').innerHTML=segHTML('priority',[['','なし'],['S','S 今週'],['A','A 今月'],['B','B いつか']],d.priority||'');
+  $('e-status').innerHTML=segHTML('status',[['todo','未着手'],['doing','進行中'],['waiting','依頼中・待ち'],['done','完了']],d.status||'todo');
+  $('e-meta').textContent=editing.id?`作成 ${fmtDT(d.createdAt)} ／ 更新 ${fmtDT(d.updatedAt)}${d.doneAt?` ／ 完了 ${fmtDT(d.doneAt)}`:''}`:'';
+  $('e-del').hidden=!editing.id; $('e-toggle').hidden=!editing.id;
+  $('e-toggle').textContent=d.status==='done'?'未完に戻す':'完了にする';
+  $('e-del').textContent='削除'; $('e-del').classList.remove('arm');
+  const ro=canWrite===false; ['e-title','e-dept','e-cat','e-due','e-owner','e-next','e-memo','e-links','e-save','e-del','e-toggle'].forEach(i=>$(i).disabled=ro);
+}
+function readSheet(){
+  const d=editing.draft;
+  d.title=$('e-title').value.trim(); d.dept=$('e-dept').value; d.category=$('e-cat').value.trim();
+  d.due=$('e-due').value; d.owner=$('e-owner').value.trim(); d.next=$('e-next').value.trim(); d.memo=$('e-memo').value; d.links=$('e-links').value.trim();
+  return d;
+}
+function renderSheetLinks(){const ls=parseLinks($('e-links').value);$('e-linklist').innerHTML=ls.map(x=>`<a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">🔗 ${esc(x.label)}</a>`).join('');}
+function closeSheet(){editing=null;$('ov').hidden=true;document.body.style.overflow='';}
+
+// ---- events
+document.addEventListener('input',e=>{if(e.target.id==='e-links')renderSheetLinks();if(e.target.id==='d-q')render();});
+document.addEventListener('change',e=>{if(e.target.id==='d-sort')render();});
+document.addEventListener('click',async e=>{
+  const tileB=e.target.closest('[data-tile]'); if(tileB){fTile=fTile===tileB.dataset.tile?'':tileB.dataset.tile;render();return;}
+  const tabB=e.target.closest('[data-tab]'); if(tabB){setTab(tabB.dataset.tab);return;}
+  const ck=e.target.closest('[data-ck]'); if(ck){ck.disabled=true;await toggleDone(ck.dataset.ck);return;}
+  const op=e.target.closest('[data-open]'); if(op){openSheet(op.dataset.open);return;}
+  const seg=e.target.closest('[data-seg]'); if(seg&&editing){readSheet();editing.draft[seg.dataset.seg]=seg.dataset.v;fillSheet();return;}
+  if(e.target===$('ov')||e.target.closest('#sh-close')){closeSheet();return;}
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&editing)closeSheet();});
+$('quick').addEventListener('submit',async e=>{
+  e.preventDefault(); const title=$('q-title').value.trim(); if(!title)return;
+  const dept=$('q-dept').value; $('q-add').disabled=true;
+  const ok=await addTask(title,dept); if(ok)$('q-title').value='';
+  $('q-add').disabled=canWrite===false; $('q-title').focus();
+});
+$('f-status').addEventListener('change',e=>{fStatus=e.target.value;render();});
+$('f-owner').addEventListener('change',e=>{fOwner=e.target.value;render();});
+$('f-reset').addEventListener('click',()=>{fStatus='';fOwner='';fTile='';$('f-status').value='';render();});
+$('e-save').addEventListener('click',async()=>{
+  const d=readSheet(); if(!d.title){toast('タイトルを入れてください',true);$('e-title').focus();return;}
+  $('e-save').disabled=true;
+  let ok;
+  if(editing.id)ok=await saveTask(editing.id,d);
+  else{ if(!db){toast('データベースに接続できていません',true);ok=false;} else ok=await guard(db.collection('tasks').add({...d,createdAt:nowISO(),updatedAt:nowISO(),doneAt:d.status==='done'?nowISO():null}),'追加しました'); }
+  $('e-save').disabled=false; if(ok)closeSheet();
+});
+$('e-toggle').addEventListener('click',async()=>{
+  const d=readSheet(); d.status=d.status==='done'?'todo':'done';
+  $('e-toggle').disabled=true; const ok=await saveTask(editing.id,d); $('e-toggle').disabled=false; if(ok)closeSheet();
+});
+$('e-del').addEventListener('click',async()=>{
+  if(!delArmed){delArmed=true;$('e-del').textContent='本当に削除する';$('e-del').classList.add('arm');setTimeout(()=>{if(editing){delArmed=false;$('e-del').textContent='削除';$('e-del').classList.remove('arm');}},4000);return;}
+  const ok=await deleteTask(editing.id); if(ok)closeSheet();
+});
+window.addEventListener('hashchange',()=>{const h=location.hash.replace('#','');if(DEPT_BY[h])setTab(h);});
+
+// ---- boot
+function initSelects(){
+  const opts=DEPTS.slice(1).map(d=>`<option value="${d.id}">${d.long||d.label}</option>`).join('');
+  $('q-dept').innerHTML=opts; $('e-dept').innerHTML=opts; $('q-dept').value='marketing';
+}
+const API="https://script.google.com/macros/s/AKfycby-otpwsj6MetjJLzCNS1eKGOBYIDr5wjWKb7Yko9kOm04TD5AMZaxku1LdX7NEptA/exec";
+function getPw(){try{return localStorage.getItem('bt_pw')||'';}catch(e){return '';}}
+async function call(action,extra){
+  const r=await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({pw:getPw(),action},extra||{}))});
+  const j=await r.json(); if(!j.ok){const e=new Error(j.error||'error');e.code=j.error;throw e;} return j;
+}
+let listeners=[], pollT=null;
+async function refresh(){
+  const j=await call('list');
+  const docs=j.tasks.map(t=>({id:t.id,exists:true,data:()=>{const o=Object.assign({},t);delete o.id;return o;}}));
+  listeners.forEach(l=>l({docs,metadata:{fromCache:false}}));
+}
+function makeDb(){return {
+  collection:()=>({
+    add:async o=>{const j=await call('add',{task:o});await refresh();return j;},
+    onSnapshot:(cb,err)=>{listeners.push(cb);const tick=()=>refresh().catch(e=>{if(e.code==='auth')showGate('合言葉が変わりました');else if(err)err(e);});tick();clearInterval(pollT);pollT=setInterval(()=>{if(!document.hidden&&!editing)tick();},30000);}
+  }),
+  doc:p=>{const id=p.split('/')[1];return {
+    set:async b=>{await call('set',{id,task:b});await refresh();},
+    delete:async()=>{await call('del',{id});await refresh();}
+  };}
+};}
+function showGate(msg){$('gate').hidden=false;$('gate-err').textContent=msg||'';setTimeout(()=>$('gate-pw').focus(),50);}
+$('gate-f').addEventListener('submit',async e=>{
+  e.preventDefault(); const v=$('gate-pw').value.trim(); if(!v)return;
+  try{localStorage.setItem('bt_pw',v);}catch(e2){}
+  $('gate-err').textContent='確認しています…';
+  try{await call('list');$('gate').hidden=true;start();}
+  catch(e3){$('gate-err').textContent=e3.code==='auth'?'合言葉が違います':'接続できませんでした。時間をおいて試してください';}
+});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&db&&!editing)refresh().catch(()=>{});});
+let started=false;
+function start(){if(started)return;started=true;db=makeDb();canWrite=true;subscribe();}
+async function boot(){
+  initSelects(); readHash(); render();
+  if(!getPw()){showGate();return;}
+  try{await call('list');start();}catch(e){showGate(e.code==='auth'?'':'接続できませんでした');}
+}
+boot();
+})();
+</script>
