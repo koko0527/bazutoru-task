@@ -66,6 +66,8 @@ button{cursor:pointer}
   .board .col{background:var(--surface-2,transparent);border:1px solid var(--line);border-radius:12px;padding:4px 10px 10px}
   .board .col .group-h{display:flex;justify-content:space-between;margin:8px 2px 6px}
   .board .col.over{border-color:var(--crit)}
+  .board .col.wide{grid-column:span 2}
+  .board .col.wide>.list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;align-items:start}
   .list.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:8px;align-items:start}
 }
 h1{font-family:var(--font-display);font-weight:700;font-size:20px;margin:0;letter-spacing:.01em;display:flex;align-items:center;gap:10px}
@@ -401,7 +403,7 @@ function render(){
       const over=open.filter(isOverdue); const rest=open.filter(t=>!isOverdue(t));
       const col=(cls,h,g)=>`<section class="col ${cls}"><div class="group-h"><span>${h}</span><span>${g.length}</span></div><div class="list">${g.map(rowHTML).join('')}</div></section>`;
       if(over.length){html+=col('over','期限切れ',over);}
-      DEPTS.slice(1).forEach(d=>{const g=rest.filter(t=>t.dept===d.id);if(g.length){html+=col('',d.long||d.label,g);}});
+      DEPTS.slice(1).forEach(d=>{const g=rest.filter(t=>t.dept===d.id);if(g.length){html+=col(d.id==='marketing'&&g.length>4?'wide':'',d.long||d.label,g);}});
       const orphan=rest.filter(t=>!DEPT_BY[t.dept]); if(orphan.length)html+=col('','部門未設定',orphan);
       html=`<div class="board">${html}</div>`;
     }else html=`<div class="list cards">${open.map(rowHTML).join('')}</div>`;
