@@ -548,20 +548,24 @@ async function call(action,extra){
   const r=await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({pw:getPw(),action},extra||{}))});
   const j=await r.json(); if(!j.ok){const e=new Error(j.error||'error');e.code=j.error;throw e;} return j;
 }
-let listeners=[], pollT=null;
+let listeners=[], pollT=null, cache=[], pending=0;
+// 画面は先に更新し、保存は裏で送る（保存〜反映の待ち時間をなくす・11/19）。失敗したら読み直して戻す
+function emit(){const docs=cache.map(t=>({id:t.id,exists:true,data:()=>{const o=Object.assign({},t);delete o.id;return o;}}));listeners.forEach(l=>l({docs,metadata:{fromCache:false}}));}
 async function refresh(){
-  const j=await call('list');
-  const docs=j.tasks.map(t=>({id:t.id,exists:true,data:()=>{const o=Object.assign({},t);delete o.id;return o;}}));
-  listeners.forEach(l=>l({docs,metadata:{fromCache:false}}));
+  if(pending>0)return;  // 送信中は古い内容で上書きしない
+  const j=await call('list'); if(pending>0)return;
+  cache=j.tasks.map(t=>Object.assign({},t)); emit();
 }
+function bg(p){pending++;p.catch(e=>{toast('保存できませんでした。読み直します',true);console.error(e);}).finally(()=>{pending--;if(!pending)refresh().catch(()=>{});});}
+function newId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 function makeDb(){return {
   collection:()=>({
-    add:async o=>{const j=await call('add',{task:o});await refresh();return j;},
+    add:async o=>{const id=newId();const t=Object.assign({},o,{id});cache.push(t);emit();bg(call('add',{task:t}));return {id};},
     onSnapshot:(cb,err)=>{listeners.push(cb);const tick=()=>refresh().catch(e=>{if(e.code==='auth')showGate('合言葉が変わりました');else if(err)err(e);});tick();clearInterval(pollT);pollT=setInterval(()=>{if(!document.hidden&&!editing)tick();},30000);}
   }),
   doc:p=>{const id=p.split('/')[1];return {
-    set:async b=>{await call('set',{id,task:b});await refresh();},
-    delete:async()=>{await call('del',{id});await refresh();}
+    set:async b=>{const t=Object.assign({},b,{id});const i=cache.findIndex(x=>x.id===id);if(i>=0)cache[i]=t;else cache.push(t);emit();bg(call('set',{id,task:b}));},
+    delete:async()=>{cache=cache.filter(x=>x.id!==id);emit();bg(call('del',{id}));}
   };}
 };}
 function showGate(msg){$('gate').hidden=false;$('gate-err').textContent=msg||'';setTimeout(()=>$('gate-pw').focus(),50);}
