@@ -398,12 +398,17 @@ function render(){
     list.innerHTML=`<div class="empty"><b>${anyFilter?'この条件のタスクはありません':'未完のタスクはありません'}</b>${anyFilter?'絞り込みを解除するか、別の部門を見てください。':'上の入力欄にタイトルを入れて「追加」すると、ここに並びます。'}</div>`;
   }else{
     let html='';
-    if(tab==='all'){
+    const col=(cls,h,g)=>`<section class="col ${cls}"><div class="group-h"><span>${h}</span><span>${g.length}</span></div><div class="list">${g.map(rowHTML).join('')}</div></section>`;
+    // マーケはカテゴリ（CR／LP／その他）で列を分ける
+    const MK=[['CR',t=>/^CR/i.test(t.category||'')],['LP',t=>/^LP/i.test(t.category||'')],['その他',t=>!/^(CR|LP)/i.test(t.category||'')]];
+    const mkCols=g=>MK.map(([h,f])=>{const x=g.filter(f);return x.length?col(x.length>4?'wide':'','マーケ・'+h,x):'';}).join('');
+    if(tab==='marketing'){
+      html=`<div class="board">${mkCols(open)}</div>`;
+    }else if(tab==='all'){
       // group by dept in DEPTS order, overdue first across all
       const over=open.filter(isOverdue); const rest=open.filter(t=>!isOverdue(t));
-      const col=(cls,h,g)=>`<section class="col ${cls}"><div class="group-h"><span>${h}</span><span>${g.length}</span></div><div class="list">${g.map(rowHTML).join('')}</div></section>`;
       if(over.length){html+=col('over','期限切れ',over);}
-      DEPTS.slice(1).forEach(d=>{const g=rest.filter(t=>t.dept===d.id);if(g.length){html+=col(g.length>4?'wide':'',d.long||d.label,g);}});
+      DEPTS.slice(1).forEach(d=>{const g=rest.filter(t=>t.dept===d.id);if(!g.length)return;html+=d.id==='marketing'?mkCols(g):col(g.length>4?'wide':'',d.long||d.label,g);});
       const orphan=rest.filter(t=>!DEPT_BY[t.dept]); if(orphan.length)html+=col('','部門未設定',orphan);
       html=`<div class="board">${html}</div>`;
     }else html=`<div class="list cards">${open.map(rowHTML).join('')}</div>`;
