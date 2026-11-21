@@ -21,6 +21,13 @@
   --font-display:"Zen Kaku Gothic New","Noto Sans JP","Hiragino Sans","Yu Gothic",sans-serif;
   --font-body:"Noto Sans JP","Hiragino Sans","Yu Gothic",sans-serif;
   --r:10px;
+  --d-marketing:#d9480f; --d-marketing-soft:#fff1e8;
+  --d-is:#0f8a84; --d-is-soft:#e0f4f2;
+  --d-sales:#1d5fd0; --d-sales-soft:#e4ecfb;
+  --d-director:#7a4e9e; --d-director-soft:#f0e7f8;
+  --d-cs:#c2185b; --d-cs-soft:#fce6ef;
+  --d-recruit:#2d7a3e; --d-recruit-soft:#e2f2e5;
+  --d-general:#5f6b7a; --d-general-soft:#eef1f5;
 }
 @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
   --bg:#0c1320; --surface:#131c2c; --surface-2:#192437; --line:#26334a; --line-strong:#38496a;
@@ -32,6 +39,13 @@
   --ok:#7ccb8c; --ok-soft:#1c3522;
   --wait:#c3a1e6; --wait-soft:#2f2140;
   --shadow:0 10px 30px rgba(0,0,0,.5);
+  --d-marketing:#ff9a62; --d-marketing-soft:#33200f;
+  --d-is:#5fd3cc; --d-is-soft:#102c2b;
+  --d-sales:#7aa9ff; --d-sales-soft:#152645;
+  --d-director:#c3a1e6; --d-director-soft:#2a1e3b;
+  --d-cs:#f48fb1; --d-cs-soft:#361826;
+  --d-recruit:#7ccb8c; --d-recruit-soft:#18301e;
+  --d-general:#a3b1c6; --d-general-soft:#1c2536;
   color-scheme:dark;
 }}
 :root[data-theme="dark"]{
@@ -44,6 +58,13 @@
   --ok:#7ccb8c; --ok-soft:#1c3522;
   --wait:#c3a1e6; --wait-soft:#2f2140;
   --shadow:0 10px 30px rgba(0,0,0,.5);
+  --d-marketing:#ff9a62; --d-marketing-soft:#33200f;
+  --d-is:#5fd3cc; --d-is-soft:#102c2b;
+  --d-sales:#7aa9ff; --d-sales-soft:#152645;
+  --d-director:#c3a1e6; --d-director-soft:#2a1e3b;
+  --d-cs:#f48fb1; --d-cs-soft:#361826;
+  --d-recruit:#7ccb8c; --d-recruit-soft:#18301e;
+  --d-general:#a3b1c6; --d-general-soft:#1c2536;
   color-scheme:dark;
 }
 *{box-sizing:border-box}
@@ -114,6 +135,21 @@ h1::before{content:"";width:6px;height:22px;border-radius:3px;background:linear-
 .list{display:flex;flex-direction:column;gap:6px}
 .row{display:grid;grid-template-columns:28px minmax(0,1fr);gap:2px 10px;border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:10px 12px 10px 10px;text-align:left;width:100%;position:relative}
 .row:hover{border-color:var(--line-strong)}
+/* 部門ごとの色 */
+.dp-marketing{--d:var(--d-marketing);--d-soft:var(--d-marketing-soft)}
+.dp-is{--d:var(--d-is);--d-soft:var(--d-is-soft)}
+.dp-sales{--d:var(--d-sales);--d-soft:var(--d-sales-soft)}
+.dp-director{--d:var(--d-director);--d-soft:var(--d-director-soft)}
+.dp-cs{--d:var(--d-cs);--d-soft:var(--d-cs-soft)}
+.dp-recruit{--d:var(--d-recruit);--d-soft:var(--d-recruit-soft)}
+.dp-general{--d:var(--d-general);--d-soft:var(--d-general-soft)}
+.chip .dot{width:8px;height:8px;border-radius:50%;background:var(--d);flex:0 0 auto}
+.chip.on[class*="dp-"]{background:var(--d);border-color:var(--d);color:#fff}
+.chip.on[class*="dp-"] .dot{background:#fff}
+.col[class*="dp-"] .group-h{color:var(--d)}
+@media (min-width:900px){.board .col[class*="dp-"]{background:var(--d-soft);border-color:color-mix(in srgb,var(--d) 30%,var(--line));border-top:4px solid var(--d)}}
+.row[class*="dp-"]{border-left:4px solid var(--d);padding-left:7px}
+.row[class*="dp-"] .badge.dept{background:var(--d-soft);color:var(--d);border-color:color-mix(in srgb,var(--d) 35%,transparent);font-weight:500}
 .row.overdue{border-left:4px solid var(--crit);padding-left:7px}
 .row.soon{border-left:4px solid var(--warn);padding-left:7px}
 .row .ck{grid-row:1/span 3;align-self:start;margin-top:2px}
@@ -344,7 +380,7 @@ function renderTiles(){
 function renderChips(){
   $('chips').innerHTML=DEPTS.map(d=>{
     const c=d.id==='all'?tasks.filter(isOpen).length:tasks.filter(t=>t.dept===d.id&&isOpen(t)).length;
-    return `<button type="button" role="tab" class="chip${tab===d.id?' on':''}" data-tab="${d.id}" aria-selected="${tab===d.id}">${d.label}<span class="c">${c}</span></button>`;
+    return `<button type="button" role="tab" class="chip${d.id==='all'?'':' dp-'+d.id}${tab===d.id?' on':''}" data-tab="${d.id}" aria-selected="${tab===d.id}">${d.id==='all'?'':'<span class="dot"></span>'}${d.label}<span class="c">${c}</span></button>`;
   }).join('');
 }
 function ownerList(){const s=new Set();tasks.forEach(t=>{(t.owner||'').split(/[・,、\/／]/).map(x=>x.trim()).filter(Boolean).forEach(x=>s.add(x));});return [...s].sort();}
@@ -368,7 +404,7 @@ function rowHTML(t){
   const over=isOverdue(t), soon=isSoon(t), stale=isStale(t);
   const dueTxt=t.due?`<span class="due${over?' over':soon?' soon':''}">${over?'期限切れ ':''}${fmtDue(t.due)}${over?`（${daysBetween(t.due,todayStr())}日超過）`:''}</span>`:'';
   const ownerTxt=t.owner?`<span class="owner${stale?' stale':''}">${t.status==='waiting'?'待ち：':'担当：'}${esc(t.owner)}${t.status==='waiting'?`（${daysSince(t.updatedAt)}日）`:''}</span>`:(t.status==='waiting'?`<span class="owner stale">待ち先 未記入</span>`:'');
-  return `<div class="row${over?' overdue':soon?' soon':''}" data-id="${t.id}">
+  return `<div class="row dp-${DEPT_BY[t.dept]?t.dept:'general'}${over?' overdue':soon?' soon':''}" data-id="${t.id}">
     <button type="button" class="ck${t.status==='done'?' done':''}" data-ck="${t.id}" aria-label="${t.status==='done'?'未完に戻す':'完了にする'}" ${canWrite===false?'disabled':''}>
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5l2.6 2.5L10 3.5"/></svg></button>
     <button type="button" class="t1 openb" data-open="${t.id}" style="all:unset;display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0;cursor:pointer">
@@ -401,14 +437,14 @@ function render(){
     const col=(cls,h,g)=>`<section class="col ${cls}"><div class="group-h"><span>${h}</span><span>${g.length}</span></div><div class="list">${g.map(rowHTML).join('')}</div></section>`;
     // マーケはカテゴリ（CR／LP／その他）で列を分ける
     const MK=[['CR',t=>/^CR/i.test(t.category||'')],['LP',t=>/^LP/i.test(t.category||'')],['その他',t=>!/^(CR|LP)/i.test(t.category||'')]];
-    const mkCols=g=>MK.map(([h,f])=>{const x=g.filter(f);return x.length?col(x.length>4?'wide':'','マーケ・'+h,x):'';}).join('');
+    const mkCols=g=>MK.map(([h,f])=>{const x=g.filter(f);return x.length?col((x.length>4?'wide ':'')+'dp-marketing','マーケ・'+h,x):'';}).join('');
     if(tab==='marketing'){
       html=`<div class="board">${mkCols(open)}</div>`;
     }else if(tab==='all'){
       // group by dept in DEPTS order, overdue first across all
       const over=open.filter(isOverdue); const rest=open.filter(t=>!isOverdue(t));
       if(over.length){html+=col('over','期限切れ',over);}
-      DEPTS.slice(1).forEach(d=>{const g=rest.filter(t=>t.dept===d.id);if(!g.length)return;html+=d.id==='marketing'?mkCols(g):col(g.length>4?'wide':'',d.long||d.label,g);});
+      DEPTS.slice(1).forEach(d=>{const g=rest.filter(t=>t.dept===d.id);if(!g.length)return;html+=d.id==='marketing'?mkCols(g):col((g.length>4?'wide ':'')+'dp-'+d.id,d.long||d.label,g);});
       const orphan=rest.filter(t=>!DEPT_BY[t.dept]); if(orphan.length)html+=col('','部門未設定',orphan);
       html=`<div class="board">${html}</div>`;
     }else html=`<div class="list cards">${open.map(rowHTML).join('')}</div>`;
