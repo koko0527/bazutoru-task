@@ -89,6 +89,9 @@ button{cursor:pointer}
   .board .col.over{border-color:var(--crit)}
   .board .col.wide{grid-column:span 2}
   .board .col.wide>.list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;align-items:start}
+  /* マーケ・CR はカードが多いので3列（2026-11-25 木下） */
+  .board .col.wide3{grid-column:span 3}
+  .board .col.wide3>.list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;align-items:start}
   .list.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:8px;align-items:start}
 }
 h1{font-family:var(--font-display);font-weight:700;font-size:20px;margin:0;letter-spacing:.01em;display:flex;align-items:center;gap:10px}
@@ -437,7 +440,7 @@ function render(){
     const col=(cls,h,g)=>`<section class="col ${cls}"><div class="group-h"><span>${h}</span><span>${g.length}</span></div><div class="list">${g.map(rowHTML).join('')}</div></section>`;
     // マーケはカテゴリ（CR／LP／その他）で列を分ける
     const MK=[['CR',t=>/^CR/i.test(t.category||'')],['LP',t=>/^LP/i.test(t.category||'')],['その他',t=>!/^(CR|LP)/i.test(t.category||'')]];
-    const mkCols=g=>MK.map(([h,f])=>{const x=g.filter(f);return x.length?col((x.length>4?'wide ':'')+'dp-marketing','マーケ・'+h,x):'';}).join('');
+    const mkCols=g=>MK.map(([h,f])=>{const x=g.filter(f);return x.length?col((x.length>4?(h==='CR'?'wide3 ':'wide '):'')+'dp-marketing','マーケ・'+h,x):'';}).join('');
     if(tab==='marketing'){
       html=`<div class="board">${mkCols(open)}</div>`;
     }else if(tab==='all'){
