@@ -81,8 +81,7 @@ button{cursor:pointer}
 .board{display:block}
 .board .col + .col{margin-top:4px}
 @media (min-width:900px){
-  .board{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(300px,1fr);gap:14px;align-items:start;overflow-x:auto;padding-bottom:10px;scroll-snap-type:x proximity;overscroll-behavior-x:contain}
-  .board .col{scroll-snap-align:start}
+  .board{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(300px,1fr);gap:14px;align-items:start;overflow-x:auto;padding-bottom:10px;overscroll-behavior-x:contain}
   .board .col + .col{margin-top:0}
   .board .col{background:var(--surface-2,transparent);border:1px solid var(--line);border-radius:12px;padding:4px 10px 10px}
   .board .col .group-h{display:flex;justify-content:space-between;margin:8px 2px 6px}
@@ -431,10 +430,10 @@ function render(){
     ds==='doneAsc'?dt(a)-dt(b):ds==='dept'?(DI(a.dept)-DI(b.dept))||(dt(b)-dt(a)):ds==='pri'?((PR[a.priority||'']??3)-(PR[b.priority||'']??3))||(dt(b)-dt(a)):ds==='title'?String(a.title).localeCompare(String(b.title),'ja'):dt(b)-dt(a));
   const list=$('list');
   if(!loaded&&tasks.length===0){
-    list.innerHTML=`<div class="empty"><b>タスクを読み込んでいます</b>共有データベースに保存されたタスクがここに並びます。</div>`;
+    list.dataset.html='';list.innerHTML=`<div class="empty"><b>タスクを読み込んでいます</b>共有データベースに保存されたタスクがここに並びます。</div>`;
   }else if(open.length===0){
     const anyFilter=fStatus||fOwner||fTile;
-    list.innerHTML=`<div class="empty"><b>${anyFilter?'この条件のタスクはありません':'未完のタスクはありません'}</b>${anyFilter?'絞り込みを解除するか、別の部門を見てください。':'上の入力欄にタイトルを入れて「追加」すると、ここに並びます。'}</div>`;
+    list.dataset.html='';list.innerHTML=`<div class="empty"><b>${anyFilter?'この条件のタスクはありません':'未完のタスクはありません'}</b>${anyFilter?'絞り込みを解除するか、別の部門を見てください。':'上の入力欄にタイトルを入れて「追加」すると、ここに並びます。'}</div>`;
   }else{
     let html='';
     const col=(cls,h,g)=>`<section class="col ${cls}"><div class="group-h"><span>${h}</span><span>${g.length}</span></div><div class="list">${g.map(rowHTML).join('')}</div></section>`;
@@ -451,7 +450,10 @@ function render(){
       const orphan=rest.filter(t=>!DEPT_BY[t.dept]); if(orphan.length)html+=col('','部門未設定',orphan);
       html=`<div class="board">${html}</div>`;
     }else html=`<div class="list cards">${open.map(rowHTML).join('')}</div>`;
-    list.innerHTML=html;
+    // 30秒ごとの再描画で横スクロールが左端に戻らないよう、位置を引き継ぐ（2026-11-25 木下）
+    const ob=list.querySelector('.board'); const sx=ob?ob.scrollLeft:0, sy=window.scrollY;
+    if(list.dataset.html!==html){list.innerHTML=html; list.dataset.html=html;}
+    const nb=list.querySelector('.board'); if(nb&&nb.scrollLeft!==sx)nb.scrollLeft=sx; if(window.scrollY!==sy)window.scrollTo(0,sy);
   }
   $('doneList').innerHTML=done.map(rowHTML).join('');
   $('doneSum').textContent=`完了 ${done.length}件`;
